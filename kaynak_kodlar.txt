@@ -1,0 +1,136 @@
+import math
+import numpy as np
+import pandas as pd
+from sklearn.naive_bayes import GaussianNB
+from sklearn.preprocessing import LabelEncoder
+
+# Data ve test setini değişkenlere atar
+data_train = pd.read_csv(r"../trainSet.csv")
+data_test = pd.read_csv(r"../testSet.csv")
+
+#.........................  Train setindeki sayısal missing değerleri temizleme...........................
+
+# credit_amount içindeki missing değerler yerine ortalamayı atar
+data_train.loc[data_train["credit_amount"] == '?', "credit_amount"] = np.nan
+data_train=data_train.fillna(0) # missing değerlere 0 atar
+data_train["credit_amount"]=data_train["credit_amount"].astype(int)
+credit_amount_mean =math.ceil(data_train["credit_amount"].mean())  #ortalama
+data_train.loc[data_train["credit_amount"] == 0, "credit_amount"] = credit_amount_mean
+
+#print(data_train[data_train["credit_amount"]==np.nan]["credit_amount"].count()) # kontrol
+
+# age içindeki missing değerleri yerine ortalamyı atar
+data_train.loc[data_train["age"] == '?', "age"] = np.nan
+data_train=data_train.fillna(0) # missing değerlere 0 atar
+data_train["age"]=data_train["age"].astype(int)
+age_mean =math.ceil(data_train["age"].mean())  #ortalama
+data_train.loc[data_train["age"] == 0, "age"] = age_mean
+
+#.........................Train setindeki kategorik missing değerleri temizleme...........................
+
+# credit_history içindeki missing değerler yerine mod atar
+credit_history_mod = data_train["credit_history"].mode()
+data_train.loc[data_train["credit_history"] == '?', "credit_history"] = credit_history_mod
+
+# property_magnitude içindeki missing değerler yerine mod atar
+property_magnitude_mod = data_train["property_magnitude"].mode()
+data_train.loc[data_train["property_magnitude"] == '?', "property_magnitude"] = property_magnitude_mod
+
+#.........................  Test setindeki missing değerleri temizleme...........................
+# ? yerine NAN atar
+data_test.loc[data_test["employment"] == '?', "employment"] = np.nan
+data_test.loc[data_test["age"] == '?', "age"] = np.nan
+data_test.loc[data_test["credit_amount"] == '?', "credit_amount"] = np.nan
+data_test.loc[data_test["credit_history"] == '?', "credit_history"] = np.nan
+data_test.loc[data_test["property_magnitude"] == '?', "property_magnitude"] = np.nan
+
+data_test=data_test.dropna() # NAN içeren satırları temizler (250 satırdan 228 satıra düşer)
+
+
+#.........................Train setindeki kategorik değerleri sayısala çevirme...........................
+
+#class
+data_train["class"] = LabelEncoder().fit_transform(data_train["class"])
+#credit_history
+credit_history = pd.get_dummies(data_train["credit_history"])
+data_train =pd.concat([data_train, credit_history], axis="columns")
+data_train.drop(["credit_history"], axis="columns", inplace=True)
+
+#employment
+employment = pd.get_dummies(data_train["employment"])
+data_train =pd.concat([data_train, employment], axis="columns")
+
+data_train.drop(["employment"], axis="columns", inplace=True)
+
+#property_magnitude
+property_magnitude = pd.get_dummies(data_train["property_magnitude"])
+data_train =pd.concat([data_train, property_magnitude], axis="columns")
+
+data_train.drop(["property_magnitude"], axis="columns", inplace=True)
+
+#.........................Test setindeki kategorik değerleri sayısala çevirme...........................
+
+#class
+data_test["class"] = LabelEncoder().fit_transform(data_test["class"])
+#credit_history
+credit_history = pd.get_dummies(data_test["credit_history"])
+data_test =pd.concat([data_test, credit_history], axis="columns")
+
+data_test.drop(["credit_history"], axis="columns", inplace=True)
+
+#employment
+employment = pd.get_dummies(data_test["employment"])
+data_test =pd.concat([data_test, employment], axis="columns")
+
+data_test.drop(["employment"], axis="columns", inplace=True)
+
+#property_magnitude
+property_magnitude = pd.get_dummies(data_test["property_magnitude"])
+data_test =pd.concat([data_test, property_magnitude], axis="columns")
+
+data_test.drop(["property_magnitude"], axis="columns", inplace=True)
+
+
+# x_train y_train x_test y_test ayırma
+x_train = data_train.drop(["class"],axis="columns")
+y_train = data_train["class"].values # class
+
+x_test = data_test.drop(["class"],axis="columns")
+y_test = data_test["class"].values # class
+
+# MODEL KURMA
+model = GaussianNB()
+model.fit(x_train, y_train)
+guess=model.predict(x_test) # modelin tahmini
+
+# tp tn Accuracy... değerlerini hesaplar
+def Result_test(y_test,guess_test):
+
+    tp=0;tn=0;ac=0;fn=0;fp=0
+
+    for index in range(0, len(guess_test)):
+        if(y_test[index] == guess_test[index] and guess_test[index] == 1):
+            tp += 1
+        elif(y_test[index]==guess_test[index] and guess_test[index] == 0):
+            tn += 1
+        elif(y_test[index] != guess_test[index] and guess_test[index] == 1):
+            fp += 1
+        elif(y_test[index] != guess_test[index] and guess_test[index] == 0):
+            fn += 1
+        else: pass
+
+    ac = (tp + tn) / (tp+tn+fp+fn)
+    print(f"""
+        TEST SONUCU
+        Accuracy (Doğruluk):            {round(ac,3)}
+        TP rate (Gerçek Pozitif oranı): {round(tp/(tp+fp),3)}
+        TN rate (Gerçek Negatif oranı): {round(tn/(tn+fn),3)}     
+        TP (Gerçek Pozitif) adedi:      {tp} 
+        TN (Gerçek Negatif) adedi:      {tn}  
+        FP  Adedi:                      {fp}
+        FN  Adedi:                      {fn}
+            """)
+
+
+Result_test(y_test,guess)
+
